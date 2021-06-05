@@ -1,0 +1,136 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: AppSync Service Proxy Sample
+Parameters:
+  LambdaRunTime:
+    Type: String
+    Default: python3.8
+
+Resources:
+  #############################################
+  # AppSync
+  #############################################
+  GraphQLApi:
+    Type: AWS::AppSync::GraphQLApi
+    Properties:
+      AuthenticationType: API_KEY
+      LogConfig:
+        CloudWatchLogsRoleArn: !GetAtt AppSyncServiceRole.Arn
+        ExcludeVerboseContent: false
+        FieldLogLevel: ALL
+      Name: AppSync Service Proxy API
+      XrayEnabled: true
+  GraphQLApiKey:
+    Type: AWS::AppSync::ApiKey
+    Properties:
+      ApiId: !GetAtt GraphQLApi.ApiId
+
+  #Schema
+  GraphQLSchema:
+    Type: AWS::AppSync::GraphQLSchema
+    Properties:
+      ApiId: !GetAtt GraphQLApi.ApiId
+      DefinitionS3Location: schema.graphql
+
+  #DataSource
+  LambdaDataSource:
+    Type: AWS::AppSync::DataSource
+    Properties:
+      ApiId: !GetAtt GraphQLApi.ApiId
+      Name: LambdaDataSource
+      Type: AWS_LAMBDA
+      ServiceRoleArn: !GetAtt AppSyncServiceRole.Arn
+      LambdaConfig:
+        LambdaFunctionArn: !Sub ${TargetLambda.Arn}
+
+  #Resolver
+  LambdaResolver:
+    Type: AWS::AppSync::Resolver
+    Properties:
+      ApiId: !GetAtt GraphQLApi.ApiId
+      # Specify the Schema type
+      TypeName: Query
+      # Check it out the Fieldname of the type Query
+      FieldName: InvokeFunction
+      DataSourceName: !GetAtt LambdaDataSource.Name
+      #https://docs.aws.amazon.com/appsync/latest/devguide/resolver-mapping-template-reference-lambda.html
+      RequestMappingTemplate: |-
+        {
+            "version": "2017-02-28",
+            "operation": "Invoke",
+            "payload": {
+                "arguments": $utils.toJson($context.arguments)
+            }
+        }
+      ResponseMappingTemplate: $utils.toJson($context.result)
+
+  #############################################
+  # IAM
+  #############################################
+  AppSyncServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - sts:AssumeRole
+            Principal:
+              Service:
+                - appsync.amazonaws.com
+      Policies:
+        - PolicyName: proxy-policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                  - logs:*
+                Resource: "*"
+
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSLambda_FullAccess
+      Path: /
+      RoleName: LambdaRole
+
+  #############################################
+  #   CloudWatchLogs
+  #############################################
+  GraphQLApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/appsync/apis/${GraphQLApi.ApiId}
+
+  TargetLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${TargetLambda}
+
+  #############################################
+  # Lambda
+  #############################################
+  TargetLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: Lambda/target_lambda
+      FunctionName: TargetLambda
+      Handler: target_lambda.lambda_handler
+      MemorySize: 128
+      Role: !Sub ${LambdaRole.Arn}
+      Runtime: !Sub ${LambdaRunTime}
+      Timeout: 900

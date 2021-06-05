@@ -1,0 +1,23 @@
+# Define root schema
+schema {
+	query: Query
+	mutation: Mutation
+}
+
+type Item{
+    id: ID!
+	name: String
+    age: Int
+}
+
+type Query {
+	get_item(id: ID!): Item
+}
+
+type Mutation {
+	put_item(
+        id: ID!
+	    name: String
+        age: Int
+    ): Item
+}

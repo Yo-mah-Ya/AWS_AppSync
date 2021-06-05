@@ -1,0 +1,119 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: AppSync Service Proxy Sample
+Resources:
+  #############################################
+  # AppSync
+  #############################################
+  GraphQLApi:
+    Type: AWS::AppSync::GraphQLApi
+    Properties:
+      AuthenticationType: API_KEY
+      LogConfig:
+        CloudWatchLogsRoleArn: !GetAtt AppSyncServiceRole.Arn
+        ExcludeVerboseContent: false
+        FieldLogLevel: ALL
+      Name: AppSync Service Proxy API
+      XrayEnabled: true
+  GraphQLApiKey:
+    Type: AWS::AppSync::ApiKey
+    Properties:
+      ApiId: !GetAtt GraphQLApi.ApiId
+
+  #Schema
+  GraphQLSchema:
+    Type: AWS::AppSync::GraphQLSchema
+    Properties:
+      ApiId: !GetAtt GraphQLApi.ApiId
+      DefinitionS3Location: schema.graphql
+
+  #DataSource
+  SQSSendMsgDs:
+    Type: AWS::AppSync::DataSource
+    Properties:
+      ApiId: !GetAtt GraphQLApi.ApiId
+      Name: SQSSendMessageDataSource
+      Type: HTTP
+      ServiceRoleArn: !GetAtt AppSyncServiceRole.Arn
+      HttpConfig:
+        Endpoint: !Sub https://${AWS::Region}.queue.amazonaws.com/
+        AuthorizationConfig:
+          AuthorizationType: AWS_IAM
+          AwsIamConfig:
+            SigningRegion: !Ref AWS::Region
+            SigningServiceName: sqs
+
+  #Resolver
+  SQSSendMsgMutationResolver:
+    Type: AWS::AppSync::Resolver
+    Properties:
+      ApiId: !GetAtt GraphQLApi.ApiId
+      TypeName: Mutation
+      FieldName: sendMessage
+      DataSourceName: !GetAtt SQSSendMsgDs.Name
+      #https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-making-api-requests.html#structure-post-request
+      RequestMappingTemplate: !Sub |-
+        #set($action = "Action=SendMessage")
+        #set($version = "Version=2012-11-05")
+        #set($queueurl = "QueueUrl=${SQSQueue}")
+        #set($msgbody = "MessageBody=$ctx.arguments.data")
+        {
+          "version": "2018-05-29",
+          "method": "POST",
+          "resourcePath": "/",
+          "params": {
+            "headers": {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            "body": "$action&$version&$queueurl&$msgbody"
+          }
+        }
+      ResponseMappingTemplate: |-
+        #if($ctx.result.statusCode == 200)
+            $utils.xml.toJsonString($ctx.result.body)
+        #else
+            $utils.appendError($utils.xml.toJsonString($ctx.result.body), "$ctx.result.statusCode")
+        #end
+
+  #############################################
+  # IAM
+  #############################################
+  AppSyncServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - sts:AssumeRole
+            Principal:
+              Service:
+                - appsync.amazonaws.com
+      Policies:
+        - PolicyName: proxy-policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                  - logs:*
+                Resource: "*"
+
+  #############################################
+  #   CloudWatchLogs
+  #############################################
+  GraphQLApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/appsync/apis/${GraphQLApi.ApiId}
+
+  #############################################
+  # SQS
+  #############################################
+  SQSQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: SampleQueue

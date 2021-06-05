@@ -1,0 +1,9 @@
+{
+    "ApiUrl" : "",
+    "CognitoAppClientId" : "",
+    "CognitoUserName" : "user",
+    "CognitoUserPassword" : "Test-Password777",
+    "CognitoUserEmail" : "",
+    "CognitoUserPoolId" : "",
+    "Region" : ""
+}

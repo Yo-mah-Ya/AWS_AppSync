@@ -1,0 +1,21 @@
+# Define root schema
+schema {
+	query: Query
+	mutation: Mutation
+}
+
+input PutObj {
+	attr1: String
+	attr2: String
+}
+
+type Query {
+	InvokeFunction(id: ID!,name: String): String
+}
+
+type Mutation {
+	putObject(data: PutObj): String
+	sendMessage(data: String): String
+	putRecord(data: String): String
+	publish(data: String): String
+}
