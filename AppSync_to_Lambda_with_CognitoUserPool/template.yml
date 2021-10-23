@@ -241,5 +241,9 @@ Resources:
       Handler: target_lambda.lambda_handler
       MemorySize: 128
       Role: !Sub ${LambdaRole.Arn}
-      Runtime: !Sub ${LambdaRunTime}
+      Runtime: python3.9
       Timeout: 900
+      Tracing: Active
+      Environment:
+        Variables:
+          LOG_LEVEL: DEBUG

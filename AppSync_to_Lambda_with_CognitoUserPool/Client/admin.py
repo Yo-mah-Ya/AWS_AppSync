@@ -1,8 +1,7 @@
 #-*- encoding:utf-8 -*-
 import json
-from logging import getLogger, StreamHandler, DEBUG, INFO, WARNING, ERROR, CRITICAL
+from logging import getLogger, StreamHandler, DEBUG
 import os
-import sys
 #Third Party
 import boto3
 import requests
@@ -12,14 +11,16 @@ from warrant.aws_srp import AWSSRP
 logger = getLogger(__name__)
 handler = StreamHandler()
 handler.setLevel(DEBUG)
-logger.setLevel(os.getenv("LogLevel", DEBUG))
+logger.setLevel(os.getenv("LOG_LEVEL", DEBUG))
 logger.addHandler(handler)
 logger.propagate = False
 
 
-SETTING = {}
-with open("setting.json","r") as f:
-    SETTING = json.load(f)
+SETTING = {
+    "ApiUrl" : "",
+    "ApiKey" : "",
+    "Region" : ""
+}
 
 API_URL = SETTING["ApiUrl"]
 
@@ -69,11 +70,9 @@ class Cognito:
         return response["AuthenticationResult"]["IdToken"]
 
 def invoke_function(id_token: str) -> None:
-    logger.info(f"{sys._getframe().f_code.co_name} function called")
-    body = {
+    body = json.dumps({
         "query" : 'query myQuery { InvokeFunction(id : "1", name : "Test") }'
-    }
-    body = json.dumps(body)
+    })
 
 
     response = requests.post(

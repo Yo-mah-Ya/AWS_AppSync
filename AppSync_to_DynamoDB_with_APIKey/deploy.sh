@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 BUCKET_NAME="your-bucket-name-here"
 STACK_NAME="AppSync-to-DynamoDB"
 aws cloudformation package \

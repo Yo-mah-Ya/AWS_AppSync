@@ -1,8 +1,7 @@
 #-*- encoding:utf-8 -*-
 import json
-from logging import getLogger, StreamHandler, DEBUG, INFO, WARNING, ERROR, CRITICAL
+from logging import getLogger, StreamHandler, DEBUG
 import os
-import sys
 #Third Party
 import requests
 
@@ -10,20 +9,21 @@ import requests
 logger = getLogger(__name__)
 handler = StreamHandler()
 handler.setLevel(DEBUG)
-logger.setLevel(os.getenv("LogLevel", DEBUG))
+logger.setLevel(os.getenv("LOG_LEVEL", DEBUG))
 logger.addHandler(handler)
 logger.propagate = False
 
-SETTING = {}
-with open("setting.json","r") as f:
-    SETTING = json.load(f)
+SETTING = {
+    "ApiUrl" : "",
+    "ApiKey" : "",
+    "Region" : ""
+}
 
 
 def send_message():
-    body = {
+    body = json.dumps({
         "query" : 'mutation{sendMessage(data: "test body") }'
-    }
-    body = json.dumps(body)
+    })
     response = requests.post(
         SETTING["ApiUrl"],
         data = body,

@@ -1,8 +1,7 @@
 #-*- encoding:utf-8 -*-
 import json
-from logging import getLogger, StreamHandler, DEBUG, INFO, WARNING, ERROR, CRITICAL
+from logging import getLogger, StreamHandler, DEBUG
 import os
-import sys
 #Third Party
 import boto3
 
@@ -10,7 +9,7 @@ import boto3
 logger = getLogger(__name__)
 handler = StreamHandler()
 handler.setLevel(DEBUG)
-logger.setLevel(os.getenv("LogLevel", DEBUG))
+logger.setLevel(os.getenv("LOG_LEVEL", DEBUG))
 logger.addHandler(handler)
 logger.propagate = False
 
